@@ -1,19 +1,36 @@
 package com.mycompany.myapp;
 
-import android.app.*;
-import android.os.*;
-import android.view.*;
+import android.app.Activity;
+import android.os.Bundle;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
-public class MainActivity extends Activity 
-{
+import android.webkit.WebViewClient;
+
+public class MainActivity extends Activity {
+    private WebView webView;
+
     @Override
-    protected void onCreate(Bundle savedInstanceState)
-    {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.main);
-		WebView webView=(WebView) findViewById(R.id.mainwebView);
-		
-		webView.loadUrl("file:///android_asset/www/index.html");
-		webView.getSettings().setJavaScriptEnabled(true);
-		
-		//webView.loadDataWithBaseURL(null,"file:///andr
+        
+        webView = new WebView(this);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(true);
+
+        webView.setWebViewClient(new WebViewClient());
+        webView.loadUrl("file:///android_asset/www/index.html");
+
+        setContentView(webView);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
+        }
+    }
+}
