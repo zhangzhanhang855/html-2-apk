@@ -19,33 +19,34 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # 直接复用 GitHub Runner 自带的 Android SDK，无需额外下载
+      - name: Set up Android SDK Environment
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      # 将扁平化结构重构为标准的 Android Gradle 结构
       - name: Reorganize files into standard structure
         run: |
           mkdir -p app/src/main/java/com/example/app
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/assets
 
-          # 移动 assets
+          # 移动网页资源
           if [ -d "assets" ]; then
             cp -r assets/* app/src/main/assets/
           fi
 
-          # 移动布局 main.xml (重命名为标准的 layout 文件)
+          # 移动布局文件
           if [ -f "main.xml" ]; then
             cp main.xml app/src/main/res/layout/main.xml
           fi
 
-          # 移动 AndroidManifest.xml
+          # 移动清单文件
           if [ -f "AndroidManifest.xml" ]; then
             cp AndroidManifest.xml app/src/main/
           fi
 
-          # 移动 Java 文件到 package 对应目录
-          # 如果 MainActivity.java 里声明了 package，可以自动识别或直接移入
+          # 移动 Java 文件并按 package 放置
           PACKAGE_DIR=$(grep -E "^package " MainActivity.java | head -n 1 | awk '{print $2}' | tr -d ';' | tr '.' '/')
           if [ -n "$PACKAGE_DIR" ]; then
             mkdir -p "app/src/main/java/$PACKAGE_DIR"
@@ -54,7 +55,6 @@ jobs:
             cp MainActivity.java app/src/main/java/
           fi
 
-      # 动态生成 settings.gradle 与 build.gradle
       - name: Generate Gradle configuration
         run: |
           cat << 'EOF' > settings.gradle
@@ -84,7 +84,7 @@ jobs:
           apply plugin: 'com.android.application'
 
           android {
-              namespace 'com.example.app' // 视 MainActivity 内的 package 而定
+              namespace 'com.example.app'
               compileSdk 34
 
               defaultConfig {
@@ -103,13 +103,11 @@ jobs:
           }
           EOF
 
-      # 安装 Gradle Wrapper 并直接编译 Debug APK
       - name: Build with Gradle
         run: |
           gradle wrapper
           ./gradlew assembleDebug
 
-      # 上传生成的 APK 文件作为 GitHub Artifact 供下载
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
