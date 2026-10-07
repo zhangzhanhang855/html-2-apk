@@ -19,42 +19,65 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 直接复用 GitHub Runner 自带的 Android SDK，无需额外下载
+      # 配置 Runner 自带的 Android SDK 环境变量并自动同意许可
       - name: Set up Android SDK Environment
         run: |
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
+      # 重构老旧扁平目录并修复损坏/过时的 Manifest
       - name: Reorganize files into standard structure
         run: |
-          mkdir -p app/src/main/java/com/example/app
+          rm -rf pic
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/assets
 
-          # 移动网页资源
+          # 1. 移动网页资源
           if [ -d "assets" ]; then
             cp -r assets/* app/src/main/assets/
           fi
 
-          # 移动布局文件
+          # 2. 移动布局文件
           if [ -f "main.xml" ]; then
             cp main.xml app/src/main/res/layout/main.xml
           fi
 
-          # 移动清单文件
-          if [ -f "AndroidManifest.xml" ]; then
-            cp AndroidManifest.xml app/src/main/
+          # 3. 提取包名并放置 MainActivity.java
+          PACKAGE_NAME=$(grep -E "^package " MainActivity.java | head -n 1 | awk '{print $2}' | tr -d ';' | tr -d '\r')
+          if [ -z "$PACKAGE_NAME" ]; then
+            PACKAGE_NAME="com.example.app"
           fi
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
 
-          # 移动 Java 文件并按 package 放置
-          PACKAGE_DIR=$(grep -E "^package " MainActivity.java | head -n 1 | awk '{print $2}' | tr -d ';' | tr '.' '/')
-          if [ -n "$PACKAGE_DIR" ]; then
-            mkdir -p "app/src/main/java/$PACKAGE_DIR"
-            cp MainActivity.java "app/src/main/java/$PACKAGE_DIR/"
-          else
-            cp MainActivity.java app/src/main/java/
-          fi
+          PACKAGE_DIR=$(echo "$PACKAGE_NAME" | tr '.' '/')
+          mkdir -p "app/src/main/java/$PACKAGE_DIR"
+          cp MainActivity.java "app/src/main/java/$PACKAGE_DIR/"
 
+          # 4. 生成兼容现代 Android 标准的 AndroidManifest.xml
+          cat << EOF > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+
+              <application
+                  android:allowBackup="true"
+                  android:label="WebviewApp"
+                  android:supportsRtl="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+
+          </manifest>
+          EOF
+
+      # 动态生成 settings.gradle 和 build.gradle
       - name: Generate Gradle configuration
         run: |
           cat << 'EOF' > settings.gradle
@@ -80,15 +103,15 @@ jobs:
           }
           EOF
 
-          cat << 'EOF' > app/build.gradle
+          cat << EOF > app/build.gradle
           apply plugin: 'com.android.application'
 
           android {
-              namespace 'com.example.app'
+              namespace '${PACKAGE_NAME}'
               compileSdk 34
 
               defaultConfig {
-                  applicationId "com.example.app"
+                  applicationId '${PACKAGE_NAME}'
                   minSdk 21
                   targetSdk 34
                   versionCode 1
@@ -103,11 +126,13 @@ jobs:
           }
           EOF
 
+      # 使用与 AGP 8.2.2 兼容的 Gradle 8.2 版本执行打包
       - name: Build with Gradle
         run: |
-          gradle wrapper
-          ./gradlew assembleDebug
+          gradle wrapper --gradle-version 8.2
+          ./gradlew assembleDebug --stacktrace
 
+      # 上传构建产物
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
