@@ -25,35 +25,73 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      # 重构老旧扁平目录并修复损坏/过时的 Manifest
+      # 重构老旧扁平目录、修复残缺代码及配置
       - name: Reorganize files into standard structure
         run: |
           rm -rf pic
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/assets
 
-          # 1. 移动网页资源
-          if [ -d "assets" ]; then
+          # 1. 移动网页资源 (确保放入 assets/www)
+          if [ -d "assets/www" ]; then
             cp -r assets/* app/src/main/assets/
+          elif [ -d "assets" ]; then
+            mkdir -p app/src/main/assets/www
+            cp -r assets/* app/src/main/assets/www/
           fi
 
-          # 2. 移动布局文件
-          if [ -f "main.xml" ]; then
-            cp main.xml app/src/main/res/layout/main.xml
-          fi
-
-          # 3. 提取包名并放置 MainActivity.java
-          PACKAGE_NAME=$(grep -E "^package " MainActivity.java | head -n 1 | awk '{print $2}' | tr -d ';' | tr -d '\r')
+          # 2. 提取或固定包名
+          PACKAGE_NAME=$(grep -E "^package " MainActivity.java 2>/dev/null | head -n 1 | awk '{print $2}' | tr -d ';' | tr -d '\r')
           if [ -z "$PACKAGE_NAME" ]; then
-            PACKAGE_NAME="com.example.app"
+            PACKAGE_NAME="com.mycompany.myapp"
           fi
           echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
 
           PACKAGE_DIR=$(echo "$PACKAGE_NAME" | tr '.' '/')
           mkdir -p "app/src/main/java/$PACKAGE_DIR"
-          cp MainActivity.java "app/src/main/java/$PACKAGE_DIR/"
 
-          # 4. 生成兼容现代 Android 标准的 AndroidManifest.xml
+          # 3. 动态生成语法完整、支持 JS 与返回键回退的 MainActivity.java
+          cat << EOF > "app/src/main/java/$PACKAGE_DIR/MainActivity.java"
+          package ${PACKAGE_NAME};
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  webView = new WebView(this);
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setAllowFileAccess(true);
+                  settings.setAllowContentAccess(true);
+
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.loadUrl("file:///android_asset/www/index.html");
+
+                  setContentView(webView);
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView != null && webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+          }
+          EOF
+
+          # 4. 生成标准 AndroidManifest.xml
           cat << EOF > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -126,13 +164,13 @@ jobs:
           }
           EOF
 
-      # 使用与 AGP 8.2.2 兼容的 Gradle 8.2 版本执行打包
+      # 编译 Debug APK
       - name: Build with Gradle
         run: |
           gradle wrapper --gradle-version 8.2
           ./gradlew assembleDebug --stacktrace
 
-      # 上传构建产物
+      # 上传生成的 APK 文件
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
