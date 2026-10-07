@@ -1,28 +1,1061 @@
 <!DOCTYPE html>
-<html lang='en'>
+<html lang="en">
 <head>
-	<meta charset='utf-8'/>
-	<meta name='viewport' content="width=device-width,initial-scale=1.0,user-scalable=no ">
-	<title>the simplest method </title>
-	<link rel="stylesheet" type="text/css" href="css/style.css">
-	<script type="text/javascript" src='js/vue.js'></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>JRmusic TV Cloud · Lossless Studio</title>
+
+  <!-- Typography & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       TV DESIGN SYSTEM & REMOTE FOCUS ARCHITECTURE
+       ========================================================================== */
+    :root {
+      --bg-deep: #050811;
+      --bg-base: #0b1120;
+      --bg-surface: #131c31;
+      --bg-surface-elevated: #1e293b;
+      --bg-glass: rgba(15, 23, 42, 0.85);
+
+      /* Accents */
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.55);
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+
+      /* TV 焦点系统高亮环 */
+      --tv-focus-border: #60a5fa;
+      --tv-focus-glow: 0 0 24px rgba(96, 165, 250, 0.85), inset 0 0 8px rgba(255, 255, 255, 0.5);
+
+      /* Typography */
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --font-stack: "Plus Jakarta Sans", sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+
+      /* TV Overscan Safe Area (电视四周边距) */
+      --tv-safe-pad: 42px;
+      --sidebar-width: 280px;
+      --player-dock-height: 104px;
+      --radius-md: 14px;
+      --radius-lg: 24px;
+      --radius-full: 9999px;
+    }
+
+    body.is-premium-tier {
+      --accent: #f59e0b;
+      --accent-glow: rgba(245, 158, 11, 0.6);
+      --tv-focus-border: #fbbf24;
+      --tv-focus-glow: 0 0 28px rgba(251, 191, 36, 0.9), inset 0 0 10px rgba(255, 255, 255, 0.6);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      outline: none; /* 统一使用 TV 自定义光标 */
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--bg-deep);
+      color: var(--text-primary);
+      font-family: var(--font-stack);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 背景氛围光 */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: 
+        radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.16), transparent 50%),
+        radial-gradient(circle at 90% 90%, rgba(6, 182, 212, 0.1), transparent 50%),
+        #050811;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ==========================================================================
+       D-PAD 遥控器通用焦点高亮规则
+       ========================================================================== */
+    .focusable:focus,
+    .focusable.focused-dpad {
+      border-color: var(--tv-focus-border) !important;
+      box-shadow: var(--tv-focus-glow) !important;
+      transform: scale(1.04);
+      z-index: 50;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Toast 提示 */
+    #ui-toast-container {
+      position: fixed;
+      top: var(--tv-safe-pad);
+      right: var(--tv-safe-pad);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 99999;
+      pointer-events: none;
+    }
+    .ui-toast {
+      min-width: 380px;
+      padding: 16px 24px;
+      background: rgba(19, 28, 49, 0.95);
+      border: 2px solid var(--accent);
+      border-radius: var(--radius-md);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      animation: toastIn 0.3s ease;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ==========================================================================
+       主界面 TV 布局
+       ========================================================================== */
+    #workspace-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      padding: var(--tv-safe-pad);
+      gap: 28px;
+      z-index: 10;
+    }
+
+    /* 侧边栏 */
+    aside.studio-sidebar {
+      width: var(--sidebar-width);
+      height: 100%;
+      background: var(--bg-surface);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-lg);
+      padding: 24px 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .brand-box {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .brand-badge {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), #1d4ed8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .brand-badge svg { width: 26px; height: 26px; fill: #fff; }
+
+    .sidebar-menu-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .tv-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+    .tv-nav-item svg { width: 22px; height: 22px; fill: currentColor; }
+    .tv-nav-item.active {
+      color: #fff;
+      background: rgba(59, 130, 246, 0.16);
+      border-color: var(--accent);
+    }
+
+    .sidebar-user-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+    }
+    .user-avatar-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--bg-surface-elevated);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      overflow: hidden;
+    }
+    .user-avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* 工作台主区 */
+    main.studio-main-body {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-surface);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-lg);
+      padding: 24px 32px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* 顶部搜索操作条 */
+    header.tv-action-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .tv-search-dock {
+      flex: 1;
+      max-width: 600px;
+      display: flex;
+      align-items: center;
+      position: relative;
+    }
+    .tv-input {
+      width: 100%;
+      background: rgba(11, 17, 32, 0.9);
+      border: 2px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-full);
+      padding: 14px 20px;
+      color: #fff;
+      font-size: 1.05rem;
+    }
+    .tv-search-btn {
+      position: absolute;
+      right: 8px;
+      padding: 8px 24px;
+      border-radius: var(--radius-full);
+      background: var(--accent);
+      color: #fff;
+      border: 2px solid transparent;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    /* 滚动主视图 */
+    .tv-scroll-pane {
+      flex: 1;
+      overflow-y: auto;
+      margin-top: 20px;
+      padding-bottom: 110px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    /* 卡片网格 */
+    .grid-deck-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 20px;
+    }
+    .tv-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-md);
+      padding: 22px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .tv-card-title { font-size: 1.15rem; font-weight: 700; }
+    .tv-card-sub { font-size: 0.85rem; color: var(--text-muted); }
+
+    /* 曲目列表表格 */
+    .stream-pipeline-table {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .track-row-node {
+      display: grid;
+      grid-template-columns: 50px 1fr 140px 100px;
+      align-items: center;
+      padding: 16px 22px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.03);
+      border: 2px solid rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+    }
+    .track-row-node.current-playing {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: var(--accent);
+    }
+    .track-name-main { font-size: 1.1rem; font-weight: 700; }
+    .track-subpath { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+    .track-codec-col {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+
+    /* ==========================================================================
+       底部播放状态底栏
+       ========================================================================== */
+    footer.bottom-tv-dock {
+      position: absolute;
+      bottom: var(--tv-safe-pad);
+      left: calc(var(--tv-safe-pad) + var(--sidebar-width) + 28px);
+      right: var(--tv-safe-pad);
+      height: var(--player-dock-height);
+      background: rgba(19, 28, 49, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius-lg);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+      z-index: 100;
+    }
+    .dock-meta-unit {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      width: 35%;
+      cursor: pointer;
+    }
+    .dock-cover-thumb {
+      width: 60px;
+      height: 60px;
+      border-radius: 12px;
+      background: var(--bg-surface-elevated);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dock-cover-thumb img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    .dock-controls-unit {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .tv-ctrl-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px solid transparent;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .tv-ctrl-btn.play-circle {
+      width: 60px;
+      height: 60px;
+      background: #fff;
+      color: #000;
+    }
+    .tv-ctrl-btn svg { width: 24px; height: 24px; fill: currentColor; }
+
+    /* ==========================================================================
+       全屏大屏歌词沉浸舞台 (SPOTLIGHT LYRICS)
+       ========================================================================== */
+    #lyrics-fullscreen-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(15, 23, 42, 0.98) 0%, rgba(5, 8, 17, 0.99) 100%);
+      z-index: 2000;
+      display: none;
+      flex-direction: column;
+      padding: var(--tv-safe-pad) 80px;
+    }
+    #lyrics-fullscreen-overlay.is-open { display: flex; }
+    .lyrics-body-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1.6fr;
+      gap: 60px;
+      align-items: center;
+    }
+    .lyrics-album-art {
+      width: 420px;
+      height: 420px;
+      border-radius: var(--radius-lg);
+      object-fit: cover;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.8);
+      border: 2px solid rgba(255, 255, 255, 0.15);
+    }
+    .spotlight-lyric-text {
+      font-size: 3.2rem;
+      font-weight: 800;
+      line-height: 1.4;
+      color: #fff;
+      text-shadow: 0 0 50px var(--accent-glow);
+      text-align: center;
+    }
+
+    /* 模态框通用 */
+    .tv-modal-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 3000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .tv-modal-mask.is-open { display: flex; }
+    .tv-dialog-box {
+      background: var(--bg-surface);
+      border: 2px solid var(--accent);
+      border-radius: var(--radius-lg);
+      width: 520px;
+      padding: 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9);
+    }
+  </style>
 </head>
 <body>
-	<div id='vue1'>
-		<h2>the simplest method</h2>
-		<p>{{message}}</p>
-		<span>If you saw me be red,so indicate that the css file are loaded!</span>
-		<img src="image/obama.png">
-		<span>If you saw obama,so indicate that the image file are loaded!</span>
-		<br/>
-		<strong>Try the other interactions!</strong>
-		<br/>
-		<a href="#" v-for='aa in aas'>{{aa.text}}<br/></a>
-		<button v-on:click='go'>click</button>
-		<br/>
-		<input v-model='myname'/>
-		<todo-item v-bind:name='myname'></todo-item>
-	</div>
-<script type="text/javascript" src='js/1.js'></script>
+
+  <!-- TV Toast Hub -->
+  <div id="ui-toast-container"></div>
+
+  <!-- 主工作台 -->
+  <div id="workspace-container">
+    
+    <!-- 侧边导航 -->
+    <aside class="studio-sidebar">
+      <div>
+        <div class="brand-box">
+          <div class="brand-badge">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+          </div>
+          <div>
+            <div style="font-size: 1.3rem; font-weight: 800;">JRmusic TV</div>
+            <div style="font-size: 0.75rem; color: var(--accent); font-family: var(--font-mono); font-weight: 700;">LEANBACK EDITION</div>
+          </div>
+        </div>
+
+        <nav class="sidebar-menu-list">
+          <div class="tv-nav-item focusable active" tabindex="0" id="nav-home" onclick="AppNavigation.switchStage('home')">
+            <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            <span>Console Master</span>
+          </div>
+          <div class="tv-nav-item focusable" tabindex="0" id="nav-favorites" onclick="TrackListView.renderList('Favorite Vault', PlaybackState.favorites)">
+            <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <span>Favorites</span>
+          </div>
+          <div class="tv-nav-item focusable" tabindex="0" onclick="LyricsView.open()">
+            <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <span>Lyrics Stage</span>
+          </div>
+        </nav>
+      </div>
+
+      <!-- 用户登录卡片 -->
+      <div class="sidebar-user-card focusable" tabindex="0" onclick="AuthModalController.handleAvatarClick()">
+        <div class="user-avatar-btn" id="user-avatar-initial">?</div>
+        <div>
+          <div style="font-size: 1rem; font-weight: 700;" id="user-display-name">Sign In / Google</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);" id="user-tier-label">Cloud Session</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 工作台右侧主屏 -->
+    <main class="studio-main-body">
+      <header class="tv-action-bar">
+        <div class="tv-search-dock">
+          <input type="text" id="api-search-input" class="tv-input focusable" tabindex="0" placeholder="Search track, singer, catalog..." />
+          <button class="tv-search-btn focusable" tabindex="0" onclick="MusicAPIEngine.search()">Search</button>
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-cyan);" id="telemetry-tier-label">
+          24-Bit FLAC Studio Direct
+        </div>
+      </header>
+
+      <div class="tv-scroll-pane" id="main-scroll-pane">
+        <!-- 快速自建歌单卡片架 -->
+        <div>
+          <div style="font-size: 1.25rem; font-weight: 800; margin-bottom: 16px;">Cloud Custom Vaults</div>
+          <div class="grid-deck-cards" id="custom-playlists-shelf">
+            <div class="tv-card focusable" tabindex="0" onclick="CustomPlaylistsModule.promptNewPlaylist()">
+              <div class="tv-card-title" style="color: var(--accent);">+ New Playlist</div>
+              <div class="tv-card-sub">Create Cloud Collection</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 曲目展示流 -->
+        <div>
+          <div style="font-size: 1.25rem; font-weight: 800; margin-bottom: 16px;" id="listing-heading">Discovered Tracks</div>
+          <div class="stream-pipeline-table" id="track-items-container">
+            <div style="padding: 40px; color: var(--text-muted); text-align: center; font-family: var(--font-mono);">
+              Use remote D-Pad to search or select playlist above.
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 底部播放底栏 -->
+    <footer class="bottom-tv-dock">
+      <div class="dock-meta-unit focusable" tabindex="0" onclick="LyricsView.open()">
+        <div class="dock-cover-thumb">
+          <img id="player-thumb-img" src="" alt="Cover" />
+          <svg width="28" height="28" fill="var(--text-muted)" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+        </div>
+        <div style="overflow: hidden;">
+          <div style="font-size: 1.05rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="lbl-now-playing-title">Audio Pipeline Standby</div>
+          <div style="font-size: 0.8rem; color: var(--accent); margin-top: 2px;" id="lbl-now-playing-sub">Select track to decode</div>
+        </div>
+      </div>
+
+      <div class="dock-controls-unit">
+        <button class="tv-ctrl-btn focusable" tabindex="0" onclick="AudioEngine.prevTrack()" title="Previous">
+          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        <button class="tv-ctrl-btn play-circle focusable" tabindex="0" id="btn-master-play" onclick="AudioEngine.togglePlayState()" title="Play / Pause">
+          <svg viewBox="0 0 24 24" id="play-btn-vector"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="tv-ctrl-btn focusable" tabindex="0" onclick="AudioEngine.nextTrack()" title="Next">
+          <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
+      </div>
+
+      <div style="display: flex; gap: 14px; align-items: center;">
+        <button class="tv-ctrl-btn focusable" tabindex="0" onclick="AudioEngine.toggleCurrentFavorite()" title="Favorite">
+          <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </button>
+        <button class="tv-ctrl-btn focusable" tabindex="0" onclick="PlaylistPicker.showCurrentTrack()" title="Add to Playlist">
+          <svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg>
+        </button>
+      </div>
+
+      <audio id="core-audio-sink" preload="metadata"></audio>
+    </footer>
+  </div>
+
+  <!-- 全屏沉浸歌词舞台 -->
+  <div id="lyrics-fullscreen-overlay">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <button class="tv-ctrl-btn focusable" tabindex="0" onclick="LyricsView.close()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <div style="font-family: var(--font-mono); font-size: 1.1rem; color: var(--text-secondary);" id="lyrics-nav-song-name">Spotlight Stage</div>
+      <div style="width: 52px;"></div>
+    </div>
+
+    <div class="lyrics-body-grid">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 24px;">
+        <img class="lyrics-album-art" id="lyrics-hero-cover" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' fill='%23141a24'><rect width='100' height='100'/></svg>" />
+        <h2 style="font-size: 2rem; font-weight: 800;" id="lyrics-modal-title">Track Title</h2>
+        <div style="display: flex; gap: 16px;">
+          <button class="tv-ctrl-btn focusable" tabindex="0" onclick="PlaylistPicker.showCurrentTrack()" style="border-radius: var(--radius-full); width: auto; padding: 0 24px; gap: 8px;">
+            <svg viewBox="0 0 24 24" style="width: 18px;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            <span>加入歌单</span>
+          </button>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: center;">
+        <div class="spotlight-lyric-text" id="lyrics-spotlight-line">Ready for playback...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 加入歌单选择弹窗 -->
+  <div id="playlist-picker-modal" class="tv-modal-mask">
+    <div class="tv-dialog-box">
+      <div style="font-size: 1.4rem; font-weight: 800;">添加到自建歌单</div>
+      <div id="playlist-chip-container" style="display: flex; flex-direction: column; gap: 12px; max-height: 280px; overflow-y: auto;"></div>
+      <button class="tv-ctrl-btn focusable" tabindex="0" onclick="PlaylistPicker.close()" style="width: 100%; border-radius: var(--radius-md);">返回</button>
+    </div>
+  </div>
+
+  <!-- 提示弹窗 (新建歌单/输入) -->
+  <div id="custom-prompt-modal" class="tv-modal-mask">
+    <div class="tv-dialog-box">
+      <div style="font-size: 1.4rem; font-weight: 800;" id="custom-prompt-title">New Playlist</div>
+      <input type="text" class="tv-input focusable" tabindex="0" id="custom-prompt-input" />
+      <div style="display: flex; justify-content: flex-end; gap: 14px;">
+        <button class="tv-ctrl-btn focusable" tabindex="0" onclick="CustomPrompt.cancel()" style="border-radius: var(--radius-md); width: 120px;">取消</button>
+        <button class="tv-ctrl-btn focusable" tabindex="0" onclick="CustomPrompt.confirm()" style="border-radius: var(--radius-md); width: 120px; background: var(--accent);">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       TV RUNTIME LOGIC (无存储 / 全云端持久化 / D-PAD 遥控器映射)
+       ========================================================================== */
+  <script>
+    const CONFIG = {
+      WORKER_API_BASE: "https://jrmusic-premium.zhangzhanhang855.workers.dev",
+      BACKEND_API_BASE: "https://neteasemusicdl.onrender.com",
+      PREMIUM_QUALITIES: ['lossless', 'hires', 'jymaster', 'sky', 'dolby']
+    };
+
+    const UIToast = {
+      show(message, type = 'info', duration = 3000) {
+        const container = document.getElementById("ui-toast-container");
+        const toast = document.createElement("div");
+        toast.className = `ui-toast ${type}`;
+        toast.innerText = message;
+        container.appendChild(toast);
+        setTimeout(() => {
+          if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, duration);
+      }
+    };
+
+    const CustomPrompt = {
+      resolver: null,
+      show(title, desc, defaultVal = '') {
+        return new Promise((resolve) => {
+          CustomPrompt.resolver = resolve;
+          document.getElementById("custom-prompt-title").innerText = title;
+          const input = document.getElementById("custom-prompt-input");
+          input.value = defaultVal;
+          document.getElementById("custom-prompt-modal").classList.add("is-open");
+          input.focus();
+        });
+      },
+      confirm() {
+        const val = document.getElementById("custom-prompt-input").value;
+        document.getElementById("custom-prompt-modal").classList.remove("is-open");
+        if (CustomPrompt.resolver) CustomPrompt.resolver(val);
+        CustomPrompt.resolver = null;
+      },
+      cancel() {
+        document.getElementById("custom-prompt-modal").classList.remove("is-open");
+        if (CustomPrompt.resolver) CustomPrompt.resolver(null);
+        CustomPrompt.resolver = null;
+      }
+    };
+
+    const PlaybackState = {
+      currentUser: null,
+      currentQuality: 'lossless',
+      flatTrackIndex: [],
+      currentPlaylist: [],
+      currentTrackPointer: -1,
+      favorites: [],
+      customPlaylists: [
+        { id: "pl_tv_1", name: "TV Studio Master", tracks: [] }
+      ],
+      activeLyrics: [],
+      currentLyricIndex: -1
+    };
+
+    // 云端自建歌单模块 (不使用 IndexedDB，直接走后端存储)
+    const CustomPlaylistsModule = {
+      renderShelf() {
+        const shelf = document.getElementById("custom-playlists-shelf");
+        if (!shelf) return;
+        shelf.innerHTML = `
+          <div class="tv-card focusable" tabindex="0" onclick="CustomPlaylistsModule.promptNewPlaylist()">
+            <div class="tv-card-title" style="color: var(--accent);">+ New Playlist</div>
+            <div class="tv-card-sub">Create Cloud Collection</div>
+          </div>
+        `;
+        PlaybackState.customPlaylists.forEach(pl => {
+          const card = document.createElement("div");
+          card.className = "tv-card focusable";
+          card.tabIndex = 0;
+          card.onclick = () => TrackListView.renderList(`Playlist: ${pl.name}`, pl.tracks);
+          card.innerHTML = `
+            <div class="tv-card-title">${pl.name}</div>
+            <div class="tv-card-sub">${pl.tracks ? pl.tracks.length : 0} tracks · Cloud Vault</div>
+          `;
+          shelf.prepend(card);
+        });
+      },
+
+      async promptNewPlaylist() {
+        const name = await CustomPrompt.show("New Playlist", "", "TV Collection");
+        if (name && name.trim()) {
+          const newPl = {
+            id: "pl_" + Date.now(),
+            name: name.trim(),
+            tracks: []
+          };
+          PlaybackState.customPlaylists.push(newPl);
+          CustomPlaylistsModule.renderShelf();
+          TrackListView.syncUserData();
+          UIToast.show(`歌单「${newPl.name}」已创建！`, "success");
+        }
+      },
+
+      addTrackToPlaylist(playlistId, track) {
+        const pl = PlaybackState.customPlaylists.find(p => p.id === playlistId);
+        if (!pl) return;
+        if (!pl.tracks) pl.tracks = [];
+        if (pl.tracks.some(t => String(t.id) === String(track.id))) {
+          UIToast.show(`曲目已在歌单「${pl.name}」中！`, "info");
+          return;
+        }
+        pl.tracks.push({
+          id: String(track.id),
+          title: track.title,
+          artist: track.artist,
+          album: track.album,
+          picUrl: track.picUrl
+        });
+        CustomPlaylistsModule.renderShelf();
+        TrackListView.syncUserData();
+        UIToast.show(`已加入歌单「${pl.name}」！`, "success");
+      }
+    };
+
+    const PlaylistPicker = {
+      showCurrentTrack() {
+        if (!AudioEngine.currentTrack) {
+          UIToast.show("当前未在播放任何曲目", "error");
+          return;
+        }
+        const container = document.getElementById("playlist-chip-container");
+        container.innerHTML = "";
+        PlaybackState.customPlaylists.forEach(pl => {
+          const chip = document.createElement("div");
+          chip.className = "tv-card focusable";
+          chip.tabIndex = 0;
+          chip.innerHTML = `<div>${pl.name} (${pl.tracks ? pl.tracks.length : 0})</div>`;
+          chip.onclick = () => {
+            PlaylistPicker.close();
+            CustomPlaylistsModule.addTrackToPlaylist(pl.id, AudioEngine.currentTrack);
+          };
+          container.appendChild(chip);
+        });
+        document.getElementById("playlist-picker-modal").classList.add("is-open");
+        const first = container.querySelector(".focusable");
+        if (first) first.focus();
+      },
+      close() {
+        document.getElementById("playlist-picker-modal").classList.remove("is-open");
+      }
+    };
+
+    const MusicAPIEngine = {
+      async search() {
+        const keyword = document.getElementById("api-search-input").value.trim();
+        if (!keyword) return;
+        UIToast.show(`Querying: ${keyword}...`);
+        try {
+          const formData = new FormData();
+          formData.append("keyword", keyword);
+          formData.append("limit", "30");
+          const res = await fetch(`${CONFIG.BACKEND_API_BASE}/Search`, { method: "POST", body: formData });
+          const json = await res.json();
+          if (json.status === 200 && Array.isArray(json.data)) {
+            const tracks = json.data.map(item => ({
+              id: String(item.id),
+              title: item.name,
+              artist: item.artists,
+              album: item.album,
+              picUrl: item.picUrl
+            }));
+            PlaybackState.flatTrackIndex = tracks;
+            TrackListView.renderList(`Search: ${keyword}`, tracks);
+          }
+        } catch (e) {
+          UIToast.show("API Search Error", "error");
+        }
+      },
+
+      async resolveSongStream(songId) {
+        const formData = new FormData();
+        formData.append("url", songId);
+        formData.append("level", PlaybackState.currentQuality);
+        formData.append("type", "json");
+        const res = await fetch(`${CONFIG.BACKEND_API_BASE}/Song_V1`, { method: "POST", body: formData });
+        const json = await res.json();
+        if (json.status === 200 && json.data) return json.data;
+        throw new Error("Unable to resolve audio stream");
+      }
+    };
+
+    const LyricsView = {
+      open() {
+        if (!AudioEngine.currentTrack) return;
+        document.getElementById("lyrics-fullscreen-overlay").classList.add("is-open");
+        document.getElementById("lyrics-modal-title").innerText = AudioEngine.currentTrack.title;
+        document.getElementById("lyrics-hero-cover").src = AudioEngine.currentTrack.picUrl || "";
+      },
+      close() {
+        document.getElementById("lyrics-fullscreen-overlay").classList.remove("is-open");
+      },
+      update(text) {
+        const line = document.getElementById("lyrics-spotlight-line");
+        if (line) line.innerText = text;
+      }
+    };
+
+    const AudioEngine = {
+      sink: document.getElementById("core-audio-sink"),
+      currentTrack: null,
+
+      init() {
+        this.sink.ontimeupdate = () => {
+          // 简易歌词更新同步
+          const cur = this.sink.currentTime;
+          if (PlaybackState.activeLyrics.length > 0) {
+            let active = PlaybackState.activeLyrics.filter(l => cur >= l.time).pop();
+            if (active) LyricsView.update(active.text);
+          }
+        };
+        this.sink.onended = () => this.nextTrack();
+      },
+
+      async loadAndPlay(track) {
+        this.currentTrack = track;
+        document.getElementById("lbl-now-playing-title").innerText = track.title;
+        document.getElementById("lbl-now-playing-sub").innerText = `${track.artist} · Live Stream`;
+        const thumb = document.getElementById("player-thumb-img");
+        if (track.picUrl) {
+          thumb.src = track.picUrl;
+          thumb.style.display = "block";
+        }
+        try {
+          const stream = await MusicAPIEngine.resolveSongStream(track.id);
+          this.sink.src = stream.url;
+          await this.sink.play();
+          this.updatePlayBtn(true);
+          UIToast.show(`Playing: ${track.title}`, "success");
+        } catch (e) {
+          UIToast.show(e.message, "error");
+        }
+      },
+
+      togglePlayState() {
+        if (!this.sink.src) return;
+        if (this.sink.paused) {
+          this.sink.play();
+          this.updatePlayBtn(true);
+        } else {
+          this.sink.pause();
+          this.updatePlayBtn(false);
+        }
+      },
+
+      updatePlayBtn(isPlaying) {
+        const vec = document.getElementById("play-btn-vector");
+        vec.innerHTML = isPlaying ? `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>` : `<path d="M8 5v14l11-7z"/>`;
+      },
+
+      nextTrack() {
+        if (PlaybackState.currentPlaylist.length === 0) return;
+        PlaybackState.currentTrackPointer = (PlaybackState.currentTrackPointer + 1) % PlaybackState.currentPlaylist.length;
+        this.loadAndPlay(PlaybackState.currentPlaylist[PlaybackState.currentTrackPointer]);
+      },
+
+      prevTrack() {
+        if (PlaybackState.currentPlaylist.length === 0) return;
+        PlaybackState.currentTrackPointer = (PlaybackState.currentTrackPointer - 1 + PlaybackState.currentPlaylist.length) % PlaybackState.currentPlaylist.length;
+        this.loadAndPlay(PlaybackState.currentPlaylist[PlaybackState.currentTrackPointer]);
+      },
+
+      toggleCurrentFavorite() {
+        if (!this.currentTrack) return;
+        const idx = PlaybackState.favorites.findIndex(f => f.id === this.currentTrack.id);
+        if (idx >= 0) {
+          PlaybackState.favorites.splice(idx, 1);
+          UIToast.show(`Removed from favorites`);
+        } else {
+          PlaybackState.favorites.push(this.currentTrack);
+          UIToast.show(`Saved to favorites!`, "success");
+        }
+        TrackListView.syncUserData();
+      }
+    };
+
+    const TrackListView = {
+      renderList(title, list) {
+        document.getElementById("listing-heading").innerText = title;
+        const box = document.getElementById("track-items-container");
+        box.innerHTML = "";
+        if (!list || list.length === 0) {
+          box.innerHTML = `<div style="padding: 30px; color: var(--text-muted);">No tracks in current list.</div>`;
+          return;
+        }
+        list.forEach((t, i) => {
+          const row = document.createElement("div");
+          row.className = "track-row-node focusable";
+          row.tabIndex = 0;
+          row.innerHTML = `
+            <div style="font-family: var(--font-mono);">${i + 1}</div>
+            <div>
+              <div class="track-name-main">${t.title}</div>
+              <div class="track-subpath">${t.artist || ''} · ${t.album || ''}</div>
+            </div>
+            <div class="track-codec-col">LOSSLESS</div>
+            <div><button class="tv-ctrl-btn" style="width:36px; height:36px;">▶</button></div>
+          `;
+          row.onclick = () => {
+            PlaybackState.currentPlaylist = list;
+            PlaybackState.currentTrackPointer = i;
+            AudioEngine.loadAndPlay(t);
+          };
+          box.appendChild(row);
+        });
+      },
+
+      async syncUserData() {
+        if (!PlaybackState.currentUser) return;
+        try {
+          await fetch(`${CONFIG.WORKER_API_BASE}/api/user/sync-meta`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: PlaybackState.currentUser.username,
+              favorites: PlaybackState.favorites,
+              customPlaylists: PlaybackState.customPlaylists
+            })
+          });
+        } catch (e) {}
+      }
+    };
+
+    const AuthModalController = {
+      handleAvatarClick() {
+        if (PlaybackState.currentUser) {
+          UIToast.show(`Logged in as: ${PlaybackState.currentUser.username}`);
+          return;
+        }
+        // 调用 Android 原生 APK Google 登录通道
+        if (window.AndroidBridge && window.AndroidBridge.nativeGoogleLogin) {
+          window.AndroidBridge.nativeGoogleLogin();
+        } else {
+          UIToast.show("Triggering Google Auth (Bridge Standby)...");
+        }
+      },
+
+      setSession(userObj) {
+        PlaybackState.currentUser = userObj;
+        PlaybackState.favorites = userObj.favorites || [];
+        if (userObj.customPlaylists) PlaybackState.customPlaylists = userObj.customPlaylists;
+        document.getElementById("user-display-name").innerText = userObj.username;
+        CustomPlaylistsModule.renderShelf();
+        UIToast.show(`Welcome, ${userObj.username}!`, "success");
+      }
+    };
+
+    // Android 原生层回调接口
+    window.handleNativeGoogleToken = function(idToken) {
+      fetch(`${CONFIG.WORKER_API_BASE}/api/google-auth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: idToken })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.user) AuthModalController.setSession(data.user);
+      })
+      .catch(() => UIToast.show("Google Auth Failed", "error"));
+    };
+
+    const AppNavigation = {
+      switchStage(target) {
+        document.querySelectorAll(".tv-nav-item").forEach(el => el.classList.remove("active"));
+        if (target === 'home') {
+          document.getElementById("nav-home").classList.add("active");
+          TrackListView.renderList("Discovered Tracks", PlaybackState.flatTrackIndex);
+        }
+      }
+    };
+
+    // =========================================================================
+    // D-PAD 遥控器全局导航支持 (LEANBACK KEY HANDLING)
+    // =========================================================================
+    window.addEventListener("keydown", (e) => {
+      const active = document.activeElement;
+
+      // 遥控器返回键 (KeyCode: 4 / 27)
+      if (e.keyCode === 4 || e.key === "Escape") {
+        if (document.getElementById("lyrics-fullscreen-overlay").classList.contains("is-open")) {
+          LyricsView.close();
+          e.preventDefault();
+        } else if (document.getElementById("playlist-picker-modal").classList.contains("is-open")) {
+          PlaylistPicker.close();
+          e.preventDefault();
+        }
+        return;
+      }
+
+      // 遥控器确定键 (KeyCode: 13 / 23)
+      if (e.keyCode === 23 || e.key === "Enter") {
+        if (active && typeof active.click === "function") {
+          active.click();
+        }
+        return;
+      }
+
+      // 遥控器方向键移动管理
+      const focusables = Array.from(document.querySelectorAll('.focusable:not([style*="display: none"])'));
+      if (focusables.length === 0) return;
+      let idx = focusables.indexOf(active);
+
+      if (e.key === "ArrowDown" || e.keyCode === 20) {
+        if (idx !== -1 && idx < focusables.length - 1) {
+          focusables[idx + 1].focus();
+          e.preventDefault();
+        }
+      } else if (e.key === "ArrowUp" || e.keyCode === 19) {
+        if (idx > 0) {
+          focusables[idx - 1].focus();
+          e.preventDefault();
+        }
+      }
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+      AudioEngine.init();
+      CustomPlaylistsModule.renderShelf();
+      // 默认聚焦首个焦点
+      const first = document.querySelector(".focusable");
+      if (first) first.focus();
+    });
+  </script>
 </body>
 </html>
